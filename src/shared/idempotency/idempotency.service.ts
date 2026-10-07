@@ -30,7 +30,7 @@ export class IdempotencyService {
    * the key stays unused. A concurrent request with the same key blocks on the
    * unique index until the first one finishes, then replays its response.
    */
-  execute(
+  async execute(
     request: IdempotentRequest,
     handler: () => Promise<StoredResponse>,
   ): Promise<IdempotentResult> {
