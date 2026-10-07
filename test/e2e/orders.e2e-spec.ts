@@ -85,10 +85,12 @@ describe('Orders API (e2e)', () => {
 
       const res = await placeOrder(mixed).expect(422);
 
+      expect(res.headers['content-type']).toMatch(/application\/problem\+json/);
       expect(res.body).toMatchObject({
         status: 422,
         code: 'money.currency_mismatch',
         type: 'urn:problem-type:money.currency_mismatch',
+        details: { expected: 'USD', actual: 'EUR' },
       });
     });
   });
@@ -161,7 +163,11 @@ describe('Orders API (e2e)', () => {
     it('answers 404 Problem Details for an unknown id', async () => {
       const res = await http.get('/orders/3f2504e0-4f89-41d3-9a0c-0305e82c3301').expect(404);
 
-      expect(res.body).toMatchObject({ status: 404, code: 'order.not_found' });
+      expect(res.body).toMatchObject({
+        status: 404,
+        code: 'order.not_found',
+        details: { orderId: '3f2504e0-4f89-41d3-9a0c-0305e82c3301' },
+      });
     });
 
     it('answers 400 for a malformed id', async () => {

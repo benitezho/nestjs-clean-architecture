@@ -1,12 +1,12 @@
+import { ApplicationError } from '../../../../shared/kernel/errors/application-error';
 import type { OrderCursor } from '../../application/ports/order.repository';
 
-export class InvalidCursorError extends Error {
+export class InvalidCursorError extends ApplicationError {
   readonly kind = 'bad_request';
   readonly code = 'pagination.invalid_cursor';
 
   constructor() {
     super('The pagination cursor is malformed');
-    this.name = 'InvalidCursorError';
   }
 }
 
