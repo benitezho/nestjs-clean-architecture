@@ -83,7 +83,8 @@ sequenceDiagram
   API-->>Client: 201 Created
 
   loop every OUTBOX_POLL_INTERVAL_MS
-    Relay->>DB: BEGIN; SELECT ... WHERE pending AND due FOR UPDATE SKIP LOCKED
+    Relay->>DB: BEGIN
+    Relay->>DB: SELECT pending, due rows FOR UPDATE SKIP LOCKED
     Relay->>Broker: publish(message, key = event id)
     alt success
       Relay->>DB: status = published
