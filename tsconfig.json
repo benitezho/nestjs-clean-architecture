@@ -16,7 +16,6 @@
     "skipLibCheck": true,
     "sourceMap": true,
     "declaration": false,
-    "incremental": true,
     "outDir": "./dist",
     "types": ["node", "jest"]
   },
