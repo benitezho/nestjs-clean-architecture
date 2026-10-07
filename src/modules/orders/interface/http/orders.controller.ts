@@ -34,7 +34,7 @@ import { decodeCursor, encodeCursor } from './cursor.codec';
 import { ListOrdersQuery } from './dto/list-orders.query';
 import { OrderListResponse, OrderResponse } from './dto/order.response';
 import { PlaceOrderRequest } from './dto/place-order.request';
-import { presentOrder } from './order.presenter';
+import { OrderHttpMapper } from './mappers/order.http-mapper';
 
 const PLACE_ORDER_SCOPE = 'POST /orders';
 
@@ -47,6 +47,7 @@ export class OrdersController {
     private readonly getOrder: GetOrder,
     private readonly listOrders: ListOrders,
     private readonly idempotency: IdempotencyService,
+    private readonly mapper: OrderHttpMapper,
   ) {}
 
   @Post()
@@ -66,7 +67,11 @@ export class OrdersController {
   ): Promise<Record<string, unknown>> {
     const handler = async (): Promise<StoredResponse> => ({
       status: 201,
-      body: { ...presentOrder(await this.placeOrder.execute(body)) },
+      body: {
+        ...this.mapper.toResponse(
+          await this.placeOrder.execute(this.mapper.toPlaceOrderCommand(body)),
+        ),
+      },
     });
     const { replayed, response } =
       idempotencyKey === undefined
@@ -87,7 +92,7 @@ export class OrdersController {
   @ApiOkResponse({ type: OrderResponse })
   @ApiNotFoundResponse({ description: 'Order not found' })
   async get(@Param('id', ParseUUIDPipe) id: string): Promise<OrderResponse> {
-    return presentOrder(await this.getOrder.execute(id));
+    return this.mapper.toResponse(await this.getOrder.execute(id));
   }
 
   @Get()
@@ -98,7 +103,7 @@ export class OrdersController {
       after: query.cursor ? decodeCursor(query.cursor) : undefined,
     });
     return {
-      data: page.orders.map(presentOrder),
+      data: page.orders.map((order) => this.mapper.toResponse(order)),
       nextCursor: page.nextCursor ? encodeCursor(page.nextCursor) : null,
     };
   }
@@ -109,6 +114,6 @@ export class OrdersController {
   @ApiNotFoundResponse({ description: 'Order not found' })
   @ApiConflictResponse({ description: 'Order already cancelled or modified concurrently' })
   async cancel(@Param('id', ParseUUIDPipe) id: string): Promise<OrderResponse> {
-    return presentOrder(await this.cancelOrder.execute(id));
+    return this.mapper.toResponse(await this.cancelOrder.execute(id));
   }
 }

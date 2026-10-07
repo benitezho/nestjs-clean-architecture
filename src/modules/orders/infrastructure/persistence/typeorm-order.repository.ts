@@ -12,14 +12,16 @@ import { TransactionManager } from '../../../../shared/database/transaction-mana
 import { OutboxWriter } from '../../../../shared/outbox/outbox-writer';
 import { OrderItemEntity } from './order-item.entity';
 import { OrderEntity } from './order.entity';
-import { OrderMapper } from './order.mapper';
-import { toOutboxMessage } from './outbox-message.mapper';
+import { OrderPersistenceMapper, type OrderRecord } from './mappers/order.persistence-mapper';
+import { OutboxMessageMapper } from './mappers/outbox-message.mapper';
 
 @Injectable()
 export class TypeormOrderRepository extends OrderRepository {
   constructor(
     private readonly transactions: TransactionManager,
     private readonly outbox: OutboxWriter,
+    private readonly orderMapper: OrderPersistenceMapper,
+    private readonly outboxMapper: OutboxMessageMapper,
   ) {
     super();
   }
@@ -32,16 +34,18 @@ export class TypeormOrderRepository extends OrderRepository {
       } else {
         await this.update(manager, order);
       }
-      await this.outbox.write(order.pullEvents().map(toOutboxMessage));
+      await this.outbox.write(order.pullEvents().map((event) => this.outboxMapper.map(event)));
     });
   }
 
   async findById(id: OrderId): Promise<Order | undefined> {
-    const row = await this.transactions.manager.findOne(OrderEntity, {
-      where: { id: id.value },
-      relations: { items: true },
-    });
-    return row ? OrderMapper.toDomain(row) : undefined;
+    const manager = this.transactions.manager;
+    const row = await manager.findOneBy(OrderEntity, { id: id.value });
+    if (!row) {
+      return undefined;
+    }
+    const [record] = await this.loadRecords(manager, [row]);
+    return record && this.orderMapper.toDomain(record);
   }
 
   async list({ limit, after }: ListOrdersQuery): Promise<OrderPage> {
@@ -59,25 +63,25 @@ export class TypeormOrderRepository extends OrderRepository {
     }
     const rows = await query.getMany();
     const page = rows.slice(0, limit);
-    await this.attachItems(manager, page);
+    const records = await this.loadRecords(manager, page);
 
     const last = page.at(-1);
     return {
-      orders: page.map((row) => OrderMapper.toDomain(row)),
+      orders: records.map((record) => this.orderMapper.toDomain(record)),
       nextCursor:
         rows.length > limit && last ? { placedAt: last.placedAt, id: last.id } : undefined,
     };
   }
 
   private async insert(manager: EntityManager, order: Order): Promise<void> {
-    const { order: row, items } = OrderMapper.toEntity(order);
+    const { order: row, items } = this.orderMapper.toPersistence(order);
     row.version = 1;
     await manager.insert(OrderEntity, row);
     await manager.insert(OrderItemEntity, items);
   }
 
   private async update(manager: EntityManager, order: Order): Promise<void> {
-    const { order: row } = OrderMapper.toEntity(order);
+    const { order: row } = this.orderMapper.toPersistence(order);
     const result = await manager.update(
       OrderEntity,
       { id: row.id, version: order.version },
@@ -88,15 +92,16 @@ export class TypeormOrderRepository extends OrderRepository {
     }
   }
 
-  private async attachItems(manager: EntityManager, rows: OrderEntity[]): Promise<void> {
+  private async loadRecords(manager: EntityManager, rows: OrderEntity[]): Promise<OrderRecord[]> {
     if (rows.length === 0) {
-      return;
+      return [];
     }
     const items = await manager.find(OrderItemEntity, {
       where: { orderId: In(rows.map((row) => row.id)) },
     });
-    for (const row of rows) {
-      row.items = items.filter((item) => item.orderId === row.id);
-    }
+    return rows.map((order) => ({
+      order,
+      items: items.filter((item) => item.orderId === order.id),
+    }));
   }
 }

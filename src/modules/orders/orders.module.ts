@@ -10,10 +10,13 @@ import { CancelOrder } from './application/use-cases/cancel-order.use-case';
 import { GetOrder } from './application/use-cases/get-order.use-case';
 import { ListOrders } from './application/use-cases/list-orders.use-case';
 import { PlaceOrder } from './application/use-cases/place-order.use-case';
+import { OrderPersistenceMapper } from './infrastructure/persistence/mappers/order.persistence-mapper';
+import { OutboxMessageMapper } from './infrastructure/persistence/mappers/outbox-message.mapper';
 import { TypeormOrderRepository } from './infrastructure/persistence/typeorm-order.repository';
 import { SystemClock } from './infrastructure/system-clock';
 import { TypeormUnitOfWork } from './infrastructure/typeorm-unit-of-work';
 import { UuidIdGenerator } from './infrastructure/uuid-id-generator';
+import { OrderHttpMapper } from './interface/http/mappers/order.http-mapper';
 import { OrdersController } from './interface/http/orders.controller';
 
 /** Use cases are plain classes; the module is the only place that wires them to adapters. */
@@ -21,6 +24,9 @@ import { OrdersController } from './interface/http/orders.controller';
   imports: [DatabaseModule, OutboxModule, IdempotencyModule],
   controllers: [OrdersController],
   providers: [
+    OrderPersistenceMapper,
+    OutboxMessageMapper,
+    OrderHttpMapper,
     { provide: Clock, useClass: SystemClock },
     { provide: IdGenerator, useClass: UuidIdGenerator },
     { provide: UnitOfWork, useClass: TypeormUnitOfWork },
