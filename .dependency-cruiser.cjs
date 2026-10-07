@@ -1,5 +1,6 @@
 /** Architecture rules, enforced by `pnpm check:architecture` (and CI). */
 const MODULE = '^src/modules/([^/]+)';
+const KERNEL = '^src/shared/kernel';
 
 /** @type {import('dependency-cruiser').IConfiguration} */
 module.exports = {
@@ -7,24 +8,24 @@ module.exports = {
     {
       name: 'domain-is-pure',
       comment:
-        'domain/ may only import other files of its own domain/ (and Node core modules). ' +
-        'No frameworks, ORMs, other layers or shared code.',
+        'domain/ may only import other files of its own domain/, the shared kernel and Node ' +
+        'core modules. No frameworks, ORMs, other layers or other shared code.',
       severity: 'error',
       from: { path: `${MODULE}/domain` },
       to: {
-        pathNot: [`^src/modules/$1/domain`],
+        pathNot: [`^src/modules/$1/domain`, KERNEL],
         dependencyTypesNot: ['core'],
       },
     },
     {
       name: 'application-depends-on-domain-only',
       comment:
-        'application/ may only import its own domain/ and application/ (ports, use cases). ' +
-        'Adapters are wired from outside.',
+        'application/ may only import its own domain/ and application/ (ports, use cases) and ' +
+        'the shared kernel. Adapters are wired from outside.',
       severity: 'error',
       from: { path: `${MODULE}/application` },
       to: {
-        pathNot: [`^src/modules/$1/(domain|application)`],
+        pathNot: [`^src/modules/$1/(domain|application)`, KERNEL],
         dependencyTypesNot: ['core'],
       },
     },
@@ -34,6 +35,16 @@ module.exports = {
       severity: 'error',
       from: { path: `${MODULE}/interface` },
       to: { path: `^src/modules/$1/infrastructure` },
+    },
+    {
+      name: 'kernel-is-self-contained',
+      comment: 'shared/kernel is pure TypeScript and imports nothing outside itself.',
+      severity: 'error',
+      from: { path: KERNEL },
+      to: {
+        pathNot: [KERNEL],
+        dependencyTypesNot: ['core'],
+      },
     },
     {
       name: 'shared-does-not-depend-on-modules',

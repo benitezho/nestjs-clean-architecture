@@ -1,21 +1,11 @@
-import type { ErrorKind } from '../../domain/errors/domain-error';
-
-export abstract class ApplicationError extends Error {
-  abstract readonly kind: ErrorKind;
-  abstract readonly code: string;
-
-  constructor(message: string) {
-    super(message);
-    this.name = new.target.name;
-  }
-}
+import { ApplicationError } from '../../../../shared/kernel/errors/application-error';
 
 export class OrderNotFoundError extends ApplicationError {
   readonly kind = 'not_found';
   readonly code = 'order.not_found';
 
   constructor(id: string) {
-    super(`Order ${id} not found`);
+    super(`Order ${id} not found`, { orderId: id });
   }
 }
 
@@ -25,6 +15,6 @@ export class ConcurrentModificationError extends ApplicationError {
   readonly code = 'order.concurrent_modification';
 
   constructor(id: string) {
-    super(`Order ${id} was modified concurrently; reload and retry`);
+    super(`Order ${id} was modified concurrently; reload and retry`, { orderId: id });
   }
 }

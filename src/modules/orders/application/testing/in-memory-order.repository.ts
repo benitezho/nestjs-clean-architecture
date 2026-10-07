@@ -1,4 +1,4 @@
-import { ConcurrentModificationError } from '../errors/application-error';
+import { ConcurrentModificationError } from '../errors/order-errors';
 import type { DomainEvent } from '../../domain/events/domain-event';
 import { Order } from '../../domain/order';
 import type { OrderId } from '../../domain/order-id';

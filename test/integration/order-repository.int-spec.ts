@@ -1,5 +1,5 @@
 import { DataSource } from 'typeorm';
-import { ConcurrentModificationError } from '../../src/modules/orders/application/errors/application-error';
+import { ConcurrentModificationError } from '../../src/modules/orders/application/errors/order-errors';
 import { OrderRepository } from '../../src/modules/orders/application/ports/order.repository';
 import { UnitOfWork } from '../../src/modules/orders/application/ports/unit-of-work';
 import { OrderStatus } from '../../src/modules/orders/domain/order-status';

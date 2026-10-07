@@ -1,4 +1,4 @@
-import { DomainError } from './domain-error';
+import { DomainError } from '../../../../shared/kernel/errors/domain-error';
 
 export class InvalidMoneyError extends DomainError {
   readonly kind = 'validation';
@@ -10,7 +10,7 @@ export class CurrencyMismatchError extends DomainError {
   readonly code = 'money.currency_mismatch';
 
   constructor(expected: string, actual: string) {
-    super(`Currency mismatch: expected ${expected}, got ${actual}`);
+    super(`Currency mismatch: expected ${expected}, got ${actual}`, { expected, actual });
   }
 }
 
@@ -19,7 +19,7 @@ export class InvalidOrderIdError extends DomainError {
   readonly code = 'order.invalid_id';
 
   constructor(value: string) {
-    super(`"${value}" is not a valid order id`);
+    super(`"${value}" is not a valid order id`, { value });
   }
 }
 
@@ -42,7 +42,7 @@ export class InvalidQuantityError extends DomainError {
   readonly code = 'order.invalid_quantity';
 
   constructor(quantity: number) {
-    super(`Quantity must be a positive integer, got ${quantity}`);
+    super(`Quantity must be a positive integer, got ${quantity}`, { quantity });
   }
 }
 
@@ -51,6 +51,6 @@ export class OrderAlreadyCancelledError extends DomainError {
   readonly code = 'order.already_cancelled';
 
   constructor(id: string) {
-    super(`Order ${id} is already cancelled`);
+    super(`Order ${id} is already cancelled`, { orderId: id });
   }
 }

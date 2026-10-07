@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { EntityManager, In } from 'typeorm';
-import { ConcurrentModificationError } from '../../application/errors/application-error';
+import { ConcurrentModificationError } from '../../application/errors/order-errors';
 import {
   OrderRepository,
   type ListOrdersQuery,

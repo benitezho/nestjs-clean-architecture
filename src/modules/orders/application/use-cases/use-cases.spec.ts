@@ -1,6 +1,6 @@
 import { EmptyOrderError, OrderAlreadyCancelledError } from '../../domain/errors/order-errors';
 import { OrderStatus } from '../../domain/order-status';
-import { ConcurrentModificationError, OrderNotFoundError } from '../errors/application-error';
+import { ConcurrentModificationError, OrderNotFoundError } from '../errors/order-errors';
 import { FixedClock, PassThroughUnitOfWork, SequentialIdGenerator } from '../testing/fakes';
 import { InMemoryOrderRepository } from '../testing/in-memory-order.repository';
 import { CancelOrder } from './cancel-order.use-case';

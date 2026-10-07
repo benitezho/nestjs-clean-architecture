@@ -1,6 +1,6 @@
 import type { Order } from '../../domain/order';
 import { OrderId } from '../../domain/order-id';
-import { OrderNotFoundError } from '../errors/application-error';
+import { OrderNotFoundError } from '../errors/order-errors';
 import { Clock } from '../ports/clock';
 import { OrderRepository } from '../ports/order.repository';
 import { UnitOfWork } from '../ports/unit-of-work';

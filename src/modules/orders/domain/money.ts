@@ -14,11 +14,15 @@ export class Money {
 
   static of(amount: number, currency: string): Money {
     if (!Number.isSafeInteger(amount) || amount < 0) {
-      throw new InvalidMoneyError(`Amount must be a non-negative safe integer, got ${amount}`);
+      throw new InvalidMoneyError(`Amount must be a non-negative safe integer, got ${amount}`, {
+        field: 'amount',
+        value: amount,
+      });
     }
     if (!CURRENCY_PATTERN.test(currency)) {
       throw new InvalidMoneyError(
         `Currency must be an ISO 4217 code like "USD", got "${currency}"`,
+        { field: 'currency', value: currency },
       );
     }
     return new Money(amount, currency);
@@ -35,7 +39,10 @@ export class Money {
 
   multiply(factor: number): Money {
     if (!Number.isSafeInteger(factor) || factor < 0) {
-      throw new InvalidMoneyError(`Factor must be a non-negative safe integer, got ${factor}`);
+      throw new InvalidMoneyError(`Factor must be a non-negative safe integer, got ${factor}`, {
+        field: 'factor',
+        value: factor,
+      });
     }
     return Money.of(this.amount * factor, this.currency);
   }
