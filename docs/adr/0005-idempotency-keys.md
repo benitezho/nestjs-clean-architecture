@@ -21,7 +21,7 @@ without it the request is not deduplicated.
   stores the response. The key, the order and the outbox event commit together.
 - Same key and same body: the stored response is replayed with the original
   status and an `Idempotent-Replayed: true` header.
-- Same key and different body: `422 Unprocessable Content` with problem code
+- Same key and different body: `422` with problem code
   `idempotency.key_reuse`. 422 was chosen over 409 because the request is
   well-formed but semantically invalid for this key; 409 is reserved for state
   conflicts such as cancelling twice.
