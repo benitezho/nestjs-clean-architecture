@@ -44,8 +44,9 @@ module.exports = {
     },
     {
       name: 'no-circular',
+      comment: 'Bidirectional TypeORM relations are inherently circular, so entities are exempt.',
       severity: 'error',
-      from: {},
+      from: { pathNot: '\\.entity\\.ts$' },
       to: { circular: true },
     },
   ],
