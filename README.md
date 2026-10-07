@@ -25,6 +25,13 @@ trade-offs are written down in [`docs/adr`](docs/adr).
 - **Idempotency-Key** on `POST /orders`, stored in the same transaction as the
   order. ([ADR 0005](docs/adr/0005-idempotency-keys.md))
 - **Optimistic concurrency** with a `version` column; a lost update is a `409`.
+- **Explicit data mappers** at every boundary (domain, persistence, outbox, HTTP),
+  injectable and tested, with persisted data validated on the way in.
+  ([ADR 0006](docs/adr/0006-data-mappers.md))
+- **One error model, one global filter.** `BaseError` in a pure shared kernel;
+  RFC 9457 Problem Details, known Postgres failures mapped (`409`, retryable
+  `503`), internals never leaked.
+  ([ADR 0007](docs/adr/0007-error-model-and-http-mapping.md))
 - **Operational basics:** zod-validated env that fails at boot, structured logs
   (pino), health check with a DB probe, OpenAPI, graceful shutdown, migrations
   instead of `synchronize`, non-root multi-stage image.
@@ -48,6 +55,7 @@ flowchart LR
   subgraph infrastructure["infrastructure"]
     R[TypeORM repository + mappers]
   end
+  K[shared/kernel: errors, mapper contracts]
   S[shared: transactions, outbox, idempotency, http errors]
 
   C --> UC
@@ -57,10 +65,14 @@ flowchart LR
   R --> D
   R --> S
   C --> S
+  D --> K
+  UC --> K
+  S --> K
 ```
 
 Arrows point in the direction of the allowed import. `domain` imports nothing
-outside itself; `application` imports only `domain` and its own ports;
+outside itself except the pure `shared/kernel`; `application` imports only
+`domain`, its own ports and the kernel;
 `infrastructure` and `interface` depend inwards; `shared` never imports a feature.
 
 ### Outbox flow
@@ -106,17 +118,20 @@ src/
     application/        use-cases/ (PlaceOrder, CancelOrder, GetOrder, ListOrders),
                         ports/ (OrderRepository, UnitOfWork, Clock, IdGenerator),
                         errors/, testing/ (in-memory fakes)
-    infrastructure/     persistence/ (TypeORM entities, mappers, repository),
+    infrastructure/     persistence/ (TypeORM entities, repository,
+                        mappers/ order persistence + outbox message),
                         system clock, uuid generator, TypeORM unit of work
-    interface/http/     controller, dto/, presenter, cursor codec
+    interface/http/     controller, dto/, mappers/ (order HTTP mapper), cursor codec
     orders.module.ts    the only place that wires use cases to adapters
   shared/
+    kernel/             pure TypeScript: errors/ (BaseError, DomainError,
+                        ApplicationError), mapping/ (DataMapper, Mapper)
     config/             zod env schema
     database/           data source options, migrations/, TransactionManager
     outbox/             OutboxWriter, OutboxRelay, relay worker, EventPublisher port,
                         LoggingEventPublisher
     idempotency/        IdempotencyService, request hashing
-    http/               Problem Details filter, validation pipe, OpenAPI setup
+    http/               global exception filter, error mapping, validation pipe, OpenAPI
     health/             /health (Terminus)
 test/
   integration/          repository, outbox relay, idempotency (Testcontainers)
@@ -164,9 +179,22 @@ Errors are `application/problem+json`:
   "status": 409,
   "detail": "Order 3f2504e0-... is already cancelled",
   "instance": "/orders/3f2504e0-.../cancel",
-  "code": "order.already_cancelled"
+  "code": "order.already_cancelled",
+  "details": { "orderId": "3f2504e0-..." }
 }
 ```
+
+`details` is present only when the error carries data that is safe to expose.
+Unexpected errors answer a generic `500` and are logged server side.
+
+| Status | Code                                                                                                                                              |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 400    | `idempotency.invalid_key`, `pagination.invalid_cursor`; request validation (no code, `errors` lists each field)                                   |
+| 404    | `order.not_found`; unknown route (no code)                                                                                                        |
+| 409    | `order.already_cancelled`, `order.concurrent_modification`, `persistence.unique_violation`                                                        |
+| 422    | `order.empty`, `order.invalid`, `order.invalid_id`, `order.invalid_quantity`, `money.invalid`, `money.currency_mismatch`, `idempotency.key_reuse` |
+| 503    | `persistence.retryable` (serialization failure or deadlock), with `Retry-After`                                                                   |
+| 500    | anything unexpected, no code                                                                                                                      |
 
 See the published events with `docker compose exec postgres psql -U app -c
 "select event_type, status, attempts from outbox_events"`. The default
@@ -203,7 +231,7 @@ docker run --rm -p 3000:3000 -e DATABASE_URL=postgres://... nestjs-clean-archite
 | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `pnpm test`                   | unit tests: domain, use cases against in-memory fakes, pure helpers. No I/O.                                                                                                                                                                                              |
 | `pnpm test:integration`       | PostgreSQL via Testcontainers, migrations applied. Repository round trip, order + outbox atomicity and rollback, optimistic concurrency, idempotency (including concurrent duplicates), relay publish / backoff / terminal failure, two relays without double publishing. |
-| `pnpm test:e2e`               | supertest against the whole app: place / get / list / cancel, Problem Details shapes, idempotent replay, background relay worker.                                                                                                                                         |
+| `pnpm test:e2e`               | supertest against the whole app: place / get / list / cancel, Problem Details shapes (code and details), idempotent replay, background relay worker.                                                                                                                      |
 | `pnpm lint`, `pnpm typecheck` | ESLint (type-aware) and `tsc --noEmit`                                                                                                                                                                                                                                    |
 | `pnpm check:architecture`     | dependency-cruiser layer rules                                                                                                                                                                                                                                            |
 
@@ -217,13 +245,16 @@ each test file gets its own database cloned from a migrated template.
 3. [UnitOfWork with the transaction propagated through AsyncLocalStorage](docs/adr/0003-unit-of-work-async-local-storage.md)
 4. [Money as integer minor units plus an ISO 4217 currency](docs/adr/0004-money-integer-minor-units.md)
 5. [Idempotency-Key for POST /orders, stored in the same transaction](docs/adr/0005-idempotency-keys.md)
+6. [Explicit data mappers at every boundary](docs/adr/0006-data-mappers.md)
+7. [One error model, one global filter, RFC 9457 responses](docs/adr/0007-error-model-and-http-mapping.md)
 
 Other choices worth knowing:
 
-- Use cases return domain objects; presenters in `interface/http` shape the response.
-- Domain and application errors expose `kind` and `code`; the shared filter maps
-  them to HTTP without importing them. Request-shape errors are `400`, business
-  rule violations are `422`, state conflicts are `409`.
+- Use cases return domain objects; the HTTP mapper in `interface/http` shapes the
+  response and turns the request DTO into a command.
+- Domain and application errors extend `BaseError` (`kind`, `code`, optional
+  `details`); the global filter maps the kind to HTTP. Request-shape errors are
+  `400`, business rule violations are `422`, state conflicts are `409`.
 - Listing uses keyset pagination on `(placed_at, id)` with an opaque cursor.
 - After `save`, an aggregate instance keeps its old `version`; reload before
   changing it again.
